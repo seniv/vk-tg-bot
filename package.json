@@ -1,23 +1,24 @@
 {
   "name": "vk-tg-bot",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Telegram bot",
   "main": "tkbot.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
-  "author": "Ivan Seniv (https://github.com/Seniv)",
+  "author": "Ivan Seniv (https://github.com/seniv)",
   "license": "ISC",
   "dependencies": {
     "moment": "^2.18.1",
     "moment-timezone": "^0.5.13",
     "request": "^2.81.0",
     "telegraf": "^3.7.3",
-    "vk-io": "^3.1.7"
+    "vk-io": "^3.1.7",
+    "webp-converter": "^2.1.6"
   },
-  "repository":{
-    "type" : "git",
-    "url" : "https://github.com/Seniv/vk-tg-bot.git"
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/seniv/vk-tg-bot.git"
   }
 }
