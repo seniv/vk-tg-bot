@@ -6,38 +6,44 @@ const moment = require('moment');
 const tz = require('moment-timezone');
 require('moment/locale/en-gb');
 const fs = require('fs');
+const config = require('./config.json');
+const webp = require('webp-converter');
 
-const VK_TOKEN = 'ВАШ ВК ТОКЕН';
-const BOT = 'ВАШ ТОКЕН БОТА';
-const USER = *ID пользователя телеграм*;
 const VK_VERSION = '5.65';
 
-const vk = new VK({ token: VK_TOKEN });
-const app = new Telegraf(BOT)
+const vk = new VK({ token: config.vk_token });
+const app = new Telegraf(config.tg_token)
 
 let currentUser;
+let useName;
 
 app.command('start', ({
   from,
   reply
 }) => {
-  if (from.id != USER) return false;
+  if (from.id != config.tg_user) return false;
 
   return reply('Hello! keyboard created.', Markup
-    .keyboard([
-      ['/online', '/friends']
-    ])
+    .keyboard(config.keyboard)
     .oneTime()
     .resize()
     .extra()
   )
 })
 
+app.command('myid', ({
+  from,
+  reply
+}) => {
+  console.log(from.id);
+  return reply(from.id);
+})
+
 app.command('friends', ({
   from,
   reply
 }) => {
-  if (from.id != USER) return false;
+  if (from.id != config.tg_user) return false;
 
   vk.api.friends.get({
     count: 20,
@@ -61,8 +67,8 @@ app.command('friends', ({
 app.command('online', ({
   from,
   reply
-}) => {
-  if (from.id != USER) return false;
+}, ctx) => {
+  if (from.id != config.tg_user) return false;
   if (!currentUser) return reply('❗️Set VK user!❗️');
 
   vk.api.users.get({
@@ -72,7 +78,7 @@ app.command('online', ({
   }).then((user) => {
     let on = moment.unix(user[0].last_seen.time).tz("Europe/Kiev").calendar();
     let status = (user[0].online) ? ' is Online' : ' is Offline. last seen: ' + on;
-    reply(user[0].first_name + ' ' + user[0].last_name + status);
+    reply('ℹ️' + user[0].first_name + ' ' + user[0].last_name + status);
   }).catch((error) => {
     console.error(error)
   });
@@ -80,8 +86,7 @@ app.command('online', ({
 })
 
 app.on('text', (ctx) => {
-  if (ctx.from.id != USER) return false;
-
+  if (ctx.from.id != config.tg_user) return false;
   let matchResult = ctx.update.message.text.match(/^\/[0-9]+/);
   if (matchResult) {
     let id = matchResult[0].slice(1);
@@ -91,14 +96,20 @@ app.on('text', (ctx) => {
       fields: 'last_seen,online',
       v: VK_VERSION
     }).then((user) => {
-      msg(false, '❗️User set to *' + user[0].first_name + ' ' + user[0].last_name + ' (/' + user[0].id + ')*❗️', true);
+      useName = '👤' + user[0].first_name + ' ' + user[0].last_name + '👤';
+      ctx.reply('❗️User set to ' + user[0].first_name + ' ' + user[0].last_name + ' (/' + user[0].id + ')❗️', Markup
+        .keyboard(config.keyboard.concat([[useName]]))
+        .oneTime()
+        .resize()
+        .extra());
       currentUser = user[0].id;
     }).catch((error) => {
       console.error(error)
     });
     return true;
   }
-  if (!currentUser) return msg(false, '❗️Set VK user!❗️');
+  if (!currentUser) return ctx.reply('❗️Set VK user!❗️');
+  if (ctx.update.message.text == useName) return ctx.reply('❗️dont tap on this button😀❗️');
 
   vk.api.messages.send({
     user_id: currentUser,
@@ -109,37 +120,49 @@ app.on('text', (ctx) => {
   });
 })
 
-app.on('photo', (ctx) => {
-  if (ctx.from.id != USER) return false;
+app.on(['sticker', 'photo'], (ctx) => {
+  if (ctx.from.id != config.tg_user) return false;
   if (!currentUser) return msg(false, '❗️Set VK user!❗️');
 
-  let photo = ctx.update.message.photo[ctx.update.message.photo.length - 1];
+  let photo = (ctx.updateSubType == 'photo') ? ctx.update.message.photo[ctx.update.message.photo.length - 1] :
+  ctx.update.message.sticker;
 
   tgapi('/getFile?file_id=' + photo.file_id, (r) => {
 
-    request('https://api.telegram.org/file/bot' + BOT + '/' + r.result.file_path, () => {
+    request('https://api.telegram.org/file/bot' + config.tg_token + '/' + r.result.file_path, () => {
 
-      vk.upload.message({
-        source: fs.createReadStream(r.result.file_path)
-      }).then((photos) => {
-
-        vk.api.messages.send({
-          user_id: currentUser,
-          attachment: 'photo' + photos.owner_id + '_' + photos.id,
-          message: ctx.update.message.caption,
-          v: VK_VERSION
-        }).catch((error) => {
-          console.error(error)
+      if (ctx.updateSubType == 'sticker') {
+        let output = r.result.file_path.split('.')[0] + '.jpg';
+        webp.dwebp(r.result.file_path, output,"-o", function (status) {
+          uploadToVK(output, ctx.update.message.caption);
         });
-
-      }).catch((error) => {
-        console.error(error)
-      })
+      } else {
+        uploadToVK(r.result.file_path, ctx.update.message.caption);
+      }
     }).pipe(fs.createWriteStream(r.result.file_path))
   })
 })
 
 app.startPolling()
+
+function uploadToVK(file, text) {
+  vk.upload.message({
+    source: fs.createReadStream(file)
+  }).then((photos) => {
+
+    vk.api.messages.send({
+      user_id: currentUser,
+      attachment: 'photo' + photos.owner_id + '_' + photos.id,
+      message: text,
+      v: VK_VERSION
+    }).catch((error) => {
+      console.error(error)
+    });
+
+  }).catch((error) => {
+    console.error(error)
+  })
+}
 
 vk.longpoll.start().then(() => {
   console.log('Long Poll is started');
@@ -198,7 +221,7 @@ function parseAttachments(attachments, wall) {
     switch (atta.type) {
       case 'photo':
         let attaimg = atta.photo.photo_1280 || atta.photo.photo_807 || atta.photo.photo_604 || atta.photo.photo_130 || atta.photo.photo_75;
-        tgapi('/sendPhoto?chat_id=' + USER + '&photo=' + attaimg + '&caption=' + encodeURI(atta.photo.text), (r) => {});
+        tgapi('/sendPhoto?chat_id=' + config.tg_user + '&photo=' + attaimg + '&caption=' + encodeURI(atta.photo.text), (r) => {});
         break;
       case 'video':
         vk.api.video.get({
@@ -221,6 +244,9 @@ function parseAttachments(attachments, wall) {
           }, 100);
         }
         break;
+      case 'sticker':
+        tgapi('/sendPhoto?chat_id=' + config.tg_user + '&photo=' + atta.sticker.photo_256, (r) => {});
+        break;
       default:
         msg(false, '*' + atta.type + '*');
     }
@@ -230,11 +256,11 @@ function parseAttachments(attachments, wall) {
 function msg(user, text, md = false) {
   let markdown = md ? '&parse_mode=markdown' : '';
   text = user ? user.first_name + ' ' + user.last_name + ' (/' + user.id + '):\n' + text : text;
-  request('https://api.telegram.org/bot' + BOT + '/sendMessage?chat_id=' + USER + markdown + '&text=' + encodeURI(text))
+  request('https://api.telegram.org/bot' + config.tg_token + '/sendMessage?chat_id=' + config.tg_user + markdown + '&text=' + encodeURI(text))
 }
 
 function tgapi(req, callback) {
-  request('https://api.telegram.org/bot' + BOT + req, (err, res, r) => {
+  request('https://api.telegram.org/bot' + config.tg_token + req, (err, res, r) => {
     if (err) console.error(err);
     else if (res.statusCode != 200) console.error('statusCode: ' + res.statusCode);
     else {
