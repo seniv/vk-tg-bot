@@ -1,0 +1,8 @@
+{
+  "vk_token": "ВАШ ВК ТОКЕН",
+  "tg_token": "ВАШ ТОКЕН БОТА",
+  "tg_user": *TelegramID пользователя ботом*,
+  "keyboard": [
+    ["/online", "/friends"]
+  ]
+}
