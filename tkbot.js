@@ -159,7 +159,6 @@ app.on('voice', ctx => {
         attachment: 'doc' + r.owner_id + '_' + r.id,
         v: VK_VERSION
       })
-      console.log(r)
     })
   }).catch(err => console.error(err))
 })
