@@ -54,8 +54,10 @@ app.command('friends', ({
     let format = ''
     for (let i = 0; i < friends.items.length; i++) {
       let friend = friends.items[i]
-      let on = moment.unix(friend.last_seen.time).tz("Europe/Kiev").calendar()
-      let status = (friend.online) ? ' (Online)' : ' (last seen: ' + on + ')'
+      let offline = friend.last_seen
+        ? ' (last seen: ' + moment.unix(friend.last_seen.time).tz("Europe/Kiev").calendar() + ')'
+        : ' (Offline)'
+      let status = (friend.online) ? ' (Online)' : offline
       format += friend.first_name + ' ' + friend.last_name + ' (/' + friend.id + ')' + status + '\n'
     }
     reply(format)
@@ -76,8 +78,10 @@ app.command('online', ({
     fields: 'last_seen,online',
     v: VK_VERSION
   }).then((user) => {
-    let on = moment.unix(user[0].last_seen.time).tz("Europe/Kiev").calendar()
-    let status = (user[0].online) ? ' is Online' : ' is Offline. last seen: ' + on
+    let offline = friend.last_seen
+        ? ' is Offline. last seen: ' + moment.unix(user[0].last_seen.time).tz("Europe/Kiev").calendar()
+        : ' is Offline'
+    let status = (user[0].online) ? ' is Online' : offline
     reply('ℹ️' + user[0].first_name + ' ' + user[0].last_name + status)
   }).catch((error) => {
     console.error(error)
