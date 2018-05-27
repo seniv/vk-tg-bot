@@ -1,4 +1,10 @@
-const { VK } = require('vk-io')
+const {
+  VK,
+  PhotoAttachment,
+  VideoAttachment,
+  WallAttachment,
+  DocumentAttachment
+} = require('vk-io')
 const Telegraf = require('telegraf')
 const { Extra, Markup } = require('telegraf')
 const request = require('request')
@@ -129,6 +135,49 @@ app.command('online', async ({
   }
 })
 
+app.command('history', async ({
+  from,
+  reply
+}, ctx) => {
+  if (from.id != config.tg_user) return false
+  if (!currentUser) return reply(LOCALE.userNotSetted)
+
+  try {
+    const getUserRequest = vk.api.users.get({
+      user_ids: currentUser,
+      fields: 'last_seen,online',
+      v: VK_VERSION
+    })
+    const getHistoryRequest = vk.api.messages.getHistory({
+      user_id: currentUser,
+      v: VK_VERSION,
+    })
+    const [[user], history] = await Promise.all([getUserRequest, getHistoryRequest])
+
+    const userFullName = `${user.first_name} ${user.last_name}`
+    await reply(`History with ${userFullName}:\n`)
+
+    history.items.reverse()
+    
+    for (let i = 0; i < history.items.length; i++) {
+      const message = history.items[i];
+      
+      const withId = `${userFullName} (/${user.id})`
+      await reply(`${message.out === 0 ? 'You' : withId}:\n${message.body}`)
+
+      if(message.attachments) {
+        await parseAttachments(message.attachments)
+      }
+
+      if(message.fwd_messages) {
+        await parseForwards (message.fwd_messages)
+      }
+    }
+  } catch (error) {
+    errorHandler(error, reply)
+  }
+})
+
 app.on('text', (ctx) => {
   if (ctx.from.id != config.tg_user) return false
   let matchResult = ctx.update.message.text.match(/^\/[0-9]+/)
@@ -156,9 +205,13 @@ app.on('text', (ctx) => {
   if (!currentUser) return ctx.reply(LOCALE.userNotSetted)
   if (ctx.update.message.text == useName) return ctx.reply(LOCALE.clickOnUserInfoButton)
 
+  const msg = ctx.message.reply_to_message
+    ? `${ctx.message.text}\n\n » ${ctx.message.reply_to_message.text}`
+    : ctx.message.text
+
   vk.api.messages.send({
     user_id: currentUser,
-    message: ctx.update.message.text,
+    message: msg,
     v: VK_VERSION
   }).catch((error) => {
     errorHandler(error, ctx.reply)
@@ -201,7 +254,7 @@ app.on('voice', ctx => {
     }).then(r => {
       return vk.api.messages.send({
         user_id: currentUser,
-        attachment: 'doc' + r.owner_id + '_' + r.id,
+        attachment: r.toString(),
         v: VK_VERSION
       })
     })
@@ -213,17 +266,16 @@ app.catch(err => console.error(err))
 app.startPolling()
 
 function uploadToVK(file, text, stream = false) {
-  return vk.upload.message({
+  return vk.upload.messagePhoto({
     source: stream ? fs.createReadStream(file) : file
-  }).then((photos) => {
-
+  }).then((photo) => {
     return vk.api.messages.send({
       user_id: currentUser,
-      attachment: 'photo' + photos.owner_id + '_' + photos.id,
-      message: text,
+      attachment: photo.toString(),
+      message: text || '',
       v: VK_VERSION
-    })
-  })
+    }).catch(console.error)
+  }).catch(console.error)
 }
 
 vk.updates.startPolling().then(() => {
@@ -232,84 +284,118 @@ vk.updates.startPolling().then(() => {
   console.error(error)
 })
 
-vk.updates.on('message', (ctx) => {
+vk.updates.on('message', async (ctx) => {
   if(!ctx.isInbox() || !ctx.isDM()) {
     return false
   }
+  try {
+    await ctx.loadMessagePayload()
 
-  vk.api.users.get({
-    user_ids: ctx.getFrom().id,
-    v: VK_VERSION
-  }).then(([user]) => {
+    const [user] = await vk.api.users.get({
+      user_ids: ctx.getFrom().id,
+      v: VK_VERSION
+    })
+
+    await app.telegram.sendMessage(config.tg_user,
+      `${user.first_name} ${user.last_name} (/${user.id}):\n${ctx.getText() || ''}`)
 
     if (ctx.hasAttachments()) {
-      getMessage({
-        first_name: user.first_name,
-        last_name: user.last_name,
-        id: user.id
-      }, ctx.getId())
-    } else {
-      app.telegram.sendMessage(config.tg_user, `${user.first_name} ${user.last_name} (/${user.id}):\n${ctx.getText()}`)
+      const response = await vk.api.messages.getById({
+        message_ids: ctx.getId(),
+        v: VK_VERSION
+      })
+      const [message] = response.items
+      await parseAttachments(message.attachments)
     }
-  }).catch((error) => {
+
+    if(ctx.hasForwards()) {
+      await parseForwards (ctx.getForwards())
+    }
+  } catch (error) {
     console.error(error)
-  })
+  }
 })
 
-function getMessage(user, id) {
-  vk.api.messages.getById({
-    message_ids: id,
-    v: VK_VERSION
-  }).then((response) => {
-    const [message] = response.items
-    console.log(message)
+async function parseForwards (forwards, level = 1) {
+  try {
+    for (let i = 0; i < forwards.length; i++) {
+      const forward = forwards[i]
+  
+      const [user] = await vk.api.users.get({
+        user_ids: forward.user_id,
+        v: VK_VERSION
+      })
 
-    return app.telegram.sendMessage(config.tg_user, `${user.first_name} ${user.last_name} (/${user.id}):\n${message.body}`).then(() => {
-      parseAttachments(message.attachments)
-    })
-  }).catch(error => console.error(error))
+      const quote = '» '.repeat(level)
+      await app.telegram.sendMessage(config.tg_user,
+        `${quote}${user.first_name} ${user.last_name} (/${user.id}): ${forward.body || ''}`)
+
+      if(forward.attachments) {
+        await parseAttachments(forward.attachments)
+      }
+
+      if(forward.fwd_messages) {
+        await parseForwards (forward.fwd_messages, level+1)
+      }
+    }
+  } catch (error) {
+    console.error(error)
+  }
 }
 
-function parseAttachments(attachments, wall = false) {
-  for (let i = 0; i < attachments.length; i++) {
-    let atta = attachments[i]
-    switch (atta.type) {
-      case 'photo':
-        let attaimg = atta.photo.photo_1280 || atta.photo.photo_807 || atta.photo.photo_604 || atta.photo.photo_130 || atta.photo.photo_75
-        app.telegram.sendPhoto(config.tg_user, attaimg, { caption: atta.photo.text, disable_notification: true })
-        break
-      case 'video':
-        vk.api.video.get({
-          videos: atta.video.owner_id + '_' + atta.video.id + '_' + atta.video.access_key,
-          v: VK_VERSION
-        }).then((video) => {
-          let text = wall ? 'Video from wall: ' + video.items[0].player : 'Video: ' + video.items[0].player
-          app.telegram.sendMessage(config.tg_user, text, Extra.notifications(false))
-        }).catch((error) => {
-          console.error(error)
-        })
-        break
-      case 'wall':
-        if (atta.wall.text) {
-          app.telegram.sendMessage(config.tg_user, 'Post on wall:\n' + atta.wall.text, Extra.notifications(false)).then(() => {
-            if (atta.wall.attachments)
-              parseAttachments(atta.wall.attachments, true)
+async function parseAttachments(attachments, wall = false) {
+  try {
+    for (let i = 0; i < attachments.length; i++) {
+      let atta = attachments[i]
+      switch (atta.type) {
+        case 'photo':
+          const photo = new PhotoAttachment(atta.photo, vk)
+          await app.telegram.sendPhoto(config.tg_user, photo.getLargePhoto(), {
+            caption: photo.getText(),
+            disable_notification: true
           })
-        }
-        break
-      case 'link':
-        app.telegram.sendMessage(config.tg_user, 'URL: ' + atta.link.url + '\nTITLE: ' + atta.link.title, Extra.notifications(false))
-        break
-      case 'sticker':
-        app.telegram.sendPhoto(config.tg_user, atta.sticker.photo_256, Extra.notifications(false))
-        break
-      case 'doc':
-        if(atta.doc.type)
-          app.telegram.sendVoice(config.tg_user, atta.doc.preview.audio_msg.link_ogg, Extra.notifications(false))
-        break
-      default:
-        app.telegram.sendMessage(config.tg_user, '*' + atta.type + '*', Extra.notifications(false))
+          break
+        case 'video':
+          const videoA = new VideoAttachment(atta.video, vk)
+          const video = await vk.api.video.get({
+            videos: videoA.toString(),
+            v: VK_VERSION
+          })
+
+          let text = wall ? 'Video from wall: ' + video.items[0].player : 'Video: ' + video.items[0].player
+          await app.telegram.sendMessage(config.tg_user, text, Extra.notifications(false))
+          break
+        case 'wall':
+          const wall = new WallAttachment(atta.wall, vk)
+          await app.telegram.sendMessage(config.tg_user, `Post on wall:\n${wall.getText()}`, Extra.notifications(false))
+          
+          if (wall.hasAttachments())
+            await parseAttachments(atta.wall.attachments, true)
+          break
+        case 'link':
+          await app.telegram.sendMessage(config.tg_user, 'URL: ' + atta.link.url + '\nTITLE: ' + atta.link.title, Extra.notifications(false))
+          break
+        case 'sticker':
+          await app.telegram.sendPhoto(config.tg_user, atta.sticker.photo_256, Extra.notifications(false))
+          break
+        case 'doc':
+          const doc = new DocumentAttachment(atta.doc, vk)
+          if(doc.isVoice()) {
+            await app.telegram.sendVoice(config.tg_user, doc.getPreview().audio_msg.link_ogg, Extra.notifications(false))
+          } else {
+            await app.telegram.sendDocument(config.tg_user, doc.getUrl(), Extra.notifications(false))
+              .catch(err => {
+                console.error(err)
+                return app.telegram.sendMessage(config.tg_user, `Error. Can't upload document`, Extra.notifications(false))
+              })
+          }
+          break
+        default:
+          await app.telegram.sendMessage(config.tg_user, '*' + atta.type + '*', Extra.notifications(false))
+      }
     }
+  } catch (error) {
+    console.error(error)
   }
 }
 
