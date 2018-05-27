@@ -10,11 +10,11 @@
   "author": "Ivan Seniv (https://github.com/seniv)",
   "license": "ISC",
   "dependencies": {
-    "moment": "^2.18.1",
-    "moment-timezone": "^0.5.13",
-    "request": "^2.81.0",
-    "telegraf": "^3.16.3",
-    "vk-io": "^3.1.7",
+    "moment": "^2.22.1",
+    "moment-timezone": "^0.5.17",
+    "request": "^2.87.0",
+    "telegraf": "^3.21.2",
+    "vk-io": "^4.0.0-beta.8",
     "webp-converter": "^2.1.6"
   },
   "repository": {
