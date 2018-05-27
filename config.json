@@ -3,7 +3,9 @@
   "tg_token": "",
   "tg_user": 0,
   "keyboard": [
-    ["/online", "/friends"]
-  ]
+    ["/online", "/friends"],
+    ["/friendson", "/history"]
+  ],
+  "timezone": "Europe/Kiev"
 }
 
