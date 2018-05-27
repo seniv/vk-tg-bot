@@ -1,4 +1,4 @@
-const VK = require('vk-io')
+const { VK } = require('vk-io')
 const Telegraf = require('telegraf')
 const { Extra, Markup } = require('telegraf')
 const request = require('request')
@@ -10,6 +10,19 @@ const config = require('./config.json')
 const webp = require('webp-converter')
 
 const VK_VERSION = '5.65'
+
+/*Тут можете изменить сколько друзей показывать в списке друзей
+  Только не перестарайтесь, ибо в телеграма есть ограничение по длинне сообщений*/
+const MAX_FRIENDS = {
+  all: 50,
+  online: 60,
+}
+
+/*Тут фразы бота, можете изменить если не нравятся */
+const LOCALE = {
+  userNotSetted: '❗️First select VK recipient!❗️', // Получатель сообщений не выбран
+  clickOnUserInfoButton: '❗️dont tap on this button😀❗️' // Клик по кнопке с информацией о выбраном пользователе
+}
 
 const vk = new VK({ token: config.vk_token })
 const app = new Telegraf(config.tg_token)
@@ -39,54 +52,81 @@ app.command('myid', ({
   return reply(from.id)
 })
 
-app.command('friends', ({
+app.command('friends', async ({
   from,
   reply
 }) => {
   if (from.id != config.tg_user) return false
 
-  vk.api.friends.get({
-    count: 20,
-    order: 'hints',
-    fields: 'last_seen,online',
-    v: VK_VERSION
-  }).then((friends) => {
-    let format = ''
-    for (let i = 0; i < friends.items.length; i++) {
-      let friend = friends.items[i]
-      let offline = friend.last_seen
-        ? ' (last seen: ' + moment.unix(friend.last_seen.time).tz("Europe/Kiev").calendar() + ')'
-        : ' (Offline)'
-      let status = (friend.online) ? ' (Online)' : offline
-      format += friend.first_name + ' ' + friend.last_name + ' (/' + friend.id + ')' + status + '\n'
-    }
-    reply(format)
-  }).catch((error) => {
-    console.error(error)
-  })
+  try {
+    const friends = await vk.api.friends.get({
+      count: MAX_FRIENDS.all,
+      order: 'hints',
+      fields: 'last_seen,online',
+      v: VK_VERSION
+    })
+
+    const friendsList = friends.items.map(friend => {
+      const lastSeen = friend.last_seen
+        ? moment.unix(friend.last_seen.time).tz(config.timezone).calendar()
+        : '🤷‍♂️'
+      const onlineStatus = friend.online ? '✅' : `🕑: ${lastSeen}`
+      return `${friend.first_name} ${friend.last_name} (/${friend.id}) ${onlineStatus}`
+    }).join('\n')
+
+    reply(friendsList)
+  } catch (error) {
+    errorHandler(error, reply)
+  }
 })
 
-app.command('online', ({
+app.command('friendson', async ({
+  from,
+  reply
+}) => {
+  if (from.id != config.tg_user) return false
+
+  try {
+    const friends = await vk.api.friends.get({
+      order: 'hints',
+      fields: 'online',
+      v: VK_VERSION
+    })
+
+    const friendsOnline = friends.items.filter(friend => friend.online)
+    const friendsList = friendsOnline.slice(0, MAX_FRIENDS.online).map(friend => (
+      `${friend.first_name} ${friend.last_name} (/${friend.id})`
+    )).join('\n')
+
+    reply(`Online friends: ${friendsOnline.length}\n${friendsList}`)
+  } catch (error) {
+    errorHandler(error, reply)
+  }
+})
+
+app.command('online', async ({
   from,
   reply
 }, ctx) => {
   if (from.id != config.tg_user) return false
-  if (!currentUser) return reply('❗️Set VK user!❗️')
+  if (!currentUser) return reply(LOCALE.userNotSetted)
 
-  vk.api.users.get({
-    user_ids: currentUser,
-    fields: 'last_seen,online',
-    v: VK_VERSION
-  }).then((user) => {
-    let offline = friend.last_seen
-        ? ' is Offline. last seen: ' + moment.unix(user[0].last_seen.time).tz("Europe/Kiev").calendar()
-        : ' is Offline'
-    let status = (user[0].online) ? ' is Online' : offline
-    reply('ℹ️' + user[0].first_name + ' ' + user[0].last_name + status)
-  }).catch((error) => {
-    console.error(error)
-  })
-  return true
+  try {
+    const [friend] = await vk.api.users.get({
+      user_ids: currentUser,
+      fields: 'last_seen,online',
+      v: VK_VERSION
+    })
+
+    const lastSeen = friend.last_seen
+      ? moment.unix(friend.last_seen.time).tz(config.timezone).calendar()
+      : '🤷‍♂️'
+    const onlineStatus = friend.online ? 'Online ✅' : `Offline, 🕑: ${lastSeen}`
+
+    reply(`ℹ️${friend.first_name} ${friend.last_name} is ${onlineStatus}`)
+  } catch (error) {
+    errorHandler(error, reply)
+  }
 })
 
 app.on('text', (ctx) => {
@@ -99,34 +139,35 @@ app.on('text', (ctx) => {
       user_ids: id,
       fields: 'last_seen,online',
       v: VK_VERSION
-    }).then((user) => {
-      useName = '👤' + user[0].first_name + ' ' + user[0].last_name + '👤'
-      ctx.reply('❗️User set to ' + user[0].first_name + ' ' + user[0].last_name + ' (/' + user[0].id + ')❗️', Markup
+    }).then(([user]) => {
+      useName = '👤' + user.first_name + ' ' + user.last_name + '👤'
+      ctx.reply('❗️User set to ' + user.first_name + ' ' + user.last_name + ' (/' + user.id + ')❗️', Markup
         .keyboard(config.keyboard.concat([[useName]]))
         .oneTime()
         .resize()
         .extra())
-      currentUser = user[0].id
+      currentUser = user.id
     }).catch((error) => {
       console.error(error)
+      ctx.reply('Error. Maybe this user does not exist!')
     })
     return true
   }
-  if (!currentUser) return ctx.reply('❗️Set VK user!❗️')
-  if (ctx.update.message.text == useName) return ctx.reply('❗️dont tap on this button😀❗️')
+  if (!currentUser) return ctx.reply(LOCALE.userNotSetted)
+  if (ctx.update.message.text == useName) return ctx.reply(LOCALE.clickOnUserInfoButton)
 
   vk.api.messages.send({
     user_id: currentUser,
     message: ctx.update.message.text,
     v: VK_VERSION
   }).catch((error) => {
-    console.error(error)
+    errorHandler(error, ctx.reply)
   })
 })
 
 app.on(['sticker', 'photo'], (ctx) => {
   if (ctx.from.id != config.tg_user) return false
-  if (!currentUser) return ctx.reply('❗️Set VK user!❗️')
+  if (!currentUser) return ctx.reply(LOCALE.userNotSetted)
 
   let photo = ctx.updateSubTypes.includes('photo')
     ? ctx.update.message.photo[ctx.update.message.photo.length - 1]
@@ -151,7 +192,7 @@ app.on(['sticker', 'photo'], (ctx) => {
 
 app.on('voice', ctx => {
   if (ctx.from.id != config.tg_user) return false
-  if (!currentUser) return ctx.reply('❗️Set VK user!❗️')
+  if (!currentUser) return ctx.reply(LOCALE.userNotSetted)
 
   app.telegram.getFileLink(ctx.message.voice).then(link => {
     return vk.upload.voice({
@@ -185,31 +226,30 @@ function uploadToVK(file, text, stream = false) {
   })
 }
 
-vk.longpoll.start().then(() => {
+vk.updates.startPolling().then(() => {
   console.log('Long Poll is started')
 }).catch((error) => {
   console.error(error)
 })
 
-vk.longpoll.on('message', (message) => {
-  for (let i = 0; i < message.flags.length; i++) {
-    if (message.flags[i] == 'outbox') return false
+vk.updates.on('message', (ctx) => {
+  if(!ctx.isInbox() || !ctx.isDM()) {
+    return false
   }
-  if (message.from != 'dm') return false
 
   vk.api.users.get({
-    user_ids: message.user,
+    user_ids: ctx.getFrom().id,
     v: VK_VERSION
-  }).then((user) => {
+  }).then(([user]) => {
 
-    if (Object.keys(message.attachments).length) {
+    if (ctx.hasAttachments()) {
       getMessage({
-        first_name: user[0].first_name,
-        last_name: user[0].last_name,
-        id: user[0].id
-      }, message.id)
+        first_name: user.first_name,
+        last_name: user.last_name,
+        id: user.id
+      }, ctx.getId())
     } else {
-      app.telegram.sendMessage(config.tg_user, user[0].first_name + ' ' + user[0].last_name + ' (/' + user[0].id + '):\n' + message.text)
+      app.telegram.sendMessage(config.tg_user, `${user.first_name} ${user.last_name} (/${user.id}):\n${ctx.getText()}`)
     }
   }).catch((error) => {
     console.error(error)
@@ -220,16 +260,17 @@ function getMessage(user, id) {
   vk.api.messages.getById({
     message_ids: id,
     v: VK_VERSION
-  }).then((message) => {
-    message = message.items[0]
+  }).then((response) => {
+    const [message] = response.items
+    console.log(message)
 
-    return app.telegram.sendMessage(config.tg_user, user.first_name + ' ' + user.last_name + ' (/' + user.id + '):\n' + message.body).then(() => {
-      parseAttachments(message.attachments, false)
+    return app.telegram.sendMessage(config.tg_user, `${user.first_name} ${user.last_name} (/${user.id}):\n${message.body}`).then(() => {
+      parseAttachments(message.attachments)
     })
   }).catch(error => console.error(error))
 }
 
-function parseAttachments(attachments, wall) {
+function parseAttachments(attachments, wall = false) {
   for (let i = 0; i < attachments.length; i++) {
     let atta = attachments[i]
     switch (atta.type) {
@@ -270,4 +311,9 @@ function parseAttachments(attachments, wall) {
         app.telegram.sendMessage(config.tg_user, '*' + atta.type + '*', Extra.notifications(false))
     }
   }
+}
+
+function errorHandler (error, reply) {
+  console.error(error)
+  reply('Something went wrong...')
 }
