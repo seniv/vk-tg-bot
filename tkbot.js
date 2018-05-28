@@ -367,7 +367,7 @@ async function parseAttachments(attachments, wall = false) {
           break
         case 'wall':
           const wall = new WallAttachment(atta.wall, vk)
-          await app.telegram.sendMessage(config.tg_user, `Post on wall:\n${wall.getText()}`, Extra.notifications(false))
+          await app.telegram.sendMessage(config.tg_user, `Post on wall:\n${wall.getText() || ''}`, Extra.notifications(false))
           
           if (wall.hasAttachments())
             await parseAttachments(atta.wall.attachments, true)
