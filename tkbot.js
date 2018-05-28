@@ -159,11 +159,12 @@ app.command('history', async ({
 
     history.items.reverse()
     
+    const fullNameWithId = `${userFullName} (/${user.id})`
+
     for (let i = 0; i < history.items.length; i++) {
       const message = history.items[i];
       
-      const withId = `${userFullName} (/${user.id})`
-      await reply(`${message.out === 0 ? 'You' : withId}:\n${message.body}`)
+      await reply(`${message.out === 1 ? 'You' : fullNameWithId}:\n${message.body}`)
 
       if(message.attachments) {
         await parseAttachments(message.attachments)
