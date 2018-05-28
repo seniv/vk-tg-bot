@@ -14,9 +14,9 @@
     "moment": "^2.22.1",
     "moment-timezone": "^0.5.17",
     "request": "^2.87.0",
+    "sharp": "^0.20.2",
     "telegraf": "^3.21.2",
-    "vk-io": "^4.0.0-beta.8",
-    "webp-converter": "^2.1.6"
+    "vk-io": "^4.0.0-beta.8"
   },
   "repository": {
     "type": "git",
