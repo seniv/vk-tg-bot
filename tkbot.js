@@ -139,13 +139,14 @@ app.command('history', async ({from, reply}, ctx) => {
         const userFullName = `${user.first_name} ${user.last_name}`;
         await reply(`History with ${userFullName}:\n`);
 
-        history.items.reverse();
+    history.items.reverse()
+    
+    const fullNameWithId = `${userFullName} (/${user.id})`
 
-        for (let i = 0; i < history.items.length; i++) {
-            const message = history.items[i];
+    for (let i = 0; i < history.items.length; i++) {
+      const message = history.items[i];
 
-            const withId = `${userFullName} (/${user.id})`;
-            await reply(`${message.out === 0 ? 'You' : withId}:\n${message.body}`);
+      await reply(`${message.out === 1 ? 'You' : fullNameWithId}:\n${message.body}`)
 
             if (message.attachments) {
                 await parseAttachments(message.attachments)
@@ -349,7 +350,7 @@ async function parseAttachments(attachments, wall = false) {
                     break;
                 case 'wall':
                     const wall = new WallAttachment(atta.wall, vk);
-                    await app.telegram.sendMessage(config.tg_user, `Post on wall:\n${wall.getText()}`, Extra.notifications(false));
+                    await app.telegram.sendMessage(config.tg_user, `Post on wall:\n${wall.getText() || ''}`, Extra.notifications(false));
 
                     if (wall.hasAttachments())
                         await parseAttachments(atta.wall.attachments, true);
