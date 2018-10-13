@@ -2,10 +2,20 @@
   "vk_token": "",
   "tg_token": "",
   "tg_user": 0,
+
   "keyboard": [
     ["/online", "/friends"],
     ["/friendson", "/history"]
   ],
-  "timezone": "Europe/Kiev"
+  "timezone": "Europe/Kiev",
+  "VK_VERSION": 5.65,
+  "MAX_FRIENDS": {
+    "all": 50,
+    "online": 60
+  },
+  "LOCALE": {
+    "userNotSetted": "❗️First select VK recipient!❗️",
+    "clickOnUserInfoButton": "❗️dont tap on this button😀❗️"
+  }
 }
 

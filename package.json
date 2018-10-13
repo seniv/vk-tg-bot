@@ -4,8 +4,8 @@
   "description": "Telegram bot",
   "main": "tkbot.js",
   "scripts": {
-    "start": "node tkbot.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node src/tkbot.js",
+    "lint": "eslint ./src"
   },
   "keywords": [],
   "author": "Ivan Seniv (https://github.com/seniv)",

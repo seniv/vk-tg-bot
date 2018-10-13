@@ -3,7 +3,6 @@
     "rules": {
         "no-console":"off",
         "no-await-in-loop":"off",
-        "no-use-before-define":"off",
         "consistent-return":"off",
         "no-plusplus":"off"
     }
