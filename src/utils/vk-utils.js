@@ -56,13 +56,19 @@ const VkUtils = ({ telegram }, vk) => {
               Extra.notifications(false),
             );
             break;
-          case 'sticker':
-            await telegram.sendPhoto(
-              config.tg_user,
-              atta.sticker.photo_256,
-              Extra.notifications(false),
-            );
+          case 'sticker': {
+            const stickerUrl = atta.sticker.photo_256 || atta.sticker.images[2];
+            if (!stickerUrl) {
+              await telegram.sendMessage(
+                config.tg_user,
+                'Error. Something wrong with this sticker...',
+                Extra.notifications(false),
+              );
+              break;
+            }
+            await telegram.sendPhoto(config.tg_user, stickerUrl, Extra.notifications(false));
             break;
+          }
           case 'doc': {
             const doc = new DocumentAttachment(atta.doc, vk);
             if (doc.isVoice()) {
