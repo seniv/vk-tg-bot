@@ -10,12 +10,16 @@ const TgUtils = (app, vk) => {
     if (reply) reply('Something went wrong...');
   };
 
+  /* telegraf middleware that pass you to a next function
+     only if your telegram id equals to id that setted in config */
   const onlySettedUser = (ctx, next) => {
     if (ctx.from.id === config.tg_user) {
       return next();
     }
   };
 
+  /* telegraf middleware that pass you to a next function
+     only if you have selected vk receiver */
   const withSelecterReceiver = (ctx, next) => {
     if (!interlocutor.vkId) return ctx.reply(config.LOCALE.userNotSetted);
     return next();

@@ -10,12 +10,15 @@ const { interlocutor } = require('./state');
 const { MAX_FRIENDS, VK_VERSION, LOCALE } = config;
 
 module.exports = (app, vk, tgUtils, vkUtils) => {
+  // these functions are in ./utils/tg-utils.js
   const {
     errorHandler,
     onlySettedUser,
     uploadToVK,
     withSelecterReceiver,
   } = tgUtils;
+
+  // these functions are in ./utils/vk-utils.js
   const { parseAttachments, parseForwards } = vkUtils;
 
   app.command('start', onlySettedUser, ({ reply }) =>
