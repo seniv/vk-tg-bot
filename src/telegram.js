@@ -198,6 +198,32 @@ module.exports = (app, vk, tgUtils, vkUtils) => {
     });
   });
 
+  app.on('document', onlySettedUser, withSelecterReceiver, async (ctx) => {
+    try {
+      const fileName = ctx.message.document.file_name;
+      const mimeType = ctx.message.document.mime_type;
+      const link = await app.telegram.getFileLink(ctx.message.document);
+
+      const uploadedFile = await vk.upload.messageDocument({
+        source: {
+          value: link,
+          filename: fileName,
+          contentType: mimeType,
+        },
+        peer_id: interlocutor.vkId,
+        title: fileName,
+      });
+
+      await vk.api.messages.send({
+        user_id: interlocutor.vkId,
+        attachment: uploadedFile.toString(),
+        v: VK_VERSION,
+      });
+    } catch (error) {
+      errorHandler(error, ctx.reply);
+    }
+  });
+
   app.on('voice', onlySettedUser, withSelecterReceiver, async (ctx) => {
     try {
       const link = await app.telegram.getFileLink(ctx.message.voice);
