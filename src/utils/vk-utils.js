@@ -6,6 +6,8 @@ const {
 } = require('vk-io');
 const { Extra } = require('telegraf');
 const config = require('../../config.json');
+const sharp = require('sharp');
+const request = require('request');
 
 const { VK_VERSION } = config;
 
@@ -66,7 +68,23 @@ const VkUtils = ({ telegram }, vk) => {
               );
               break;
             }
-            await telegram.sendPhoto(config.tg_user, stickerUrl, Extra.notifications(false));
+
+            const converter = sharp()
+              .webp()
+              .toFormat('webp');
+
+            const converterStream = request(stickerUrl)
+              .on('error', e => console.error(e))
+              .pipe(converter);
+
+            await telegram.sendDocument(
+              config.tg_user,
+              {
+                source: converterStream,
+                filename: 'sticker.webp',
+              },
+              Extra.notifications(false),
+            );
             break;
           }
           case 'doc': {
