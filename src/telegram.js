@@ -4,7 +4,7 @@ const request = require('request');
 const moment = require('moment');
 require('moment-timezone');
 require('moment/locale/en-gb');
-const config = require('../config.json');
+const config = require('../config');
 const { interlocutor } = require('./state');
 
 const { MAX_FRIENDS, VK_VERSION, LOCALE } = config;

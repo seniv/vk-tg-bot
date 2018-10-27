@@ -1,7 +1,7 @@
 const { VK } = require('vk-io');
 const Telegraf = require('telegraf');
 
-const config = require('../config.json');
+const config = require('../config');
 const telegramSide = require('./telegram');
 const vkSide = require('./vk');
 const { TgUtils, VkUtils } = require('./utils');

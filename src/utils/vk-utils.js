@@ -3,10 +3,9 @@ const {
   VideoAttachment,
   WallAttachment,
   DocumentAttachment,
-  MarketAttachment,
 } = require('vk-io');
 const { Extra } = require('telegraf');
-const config = require('../../config.json');
+const config = require('../../config');
 const sharp = require('sharp');
 const request = require('request');
 
