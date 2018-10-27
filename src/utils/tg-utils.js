@@ -41,11 +41,33 @@ const TgUtils = (app, vk) => {
       errorHandler(error);
     }
   };
+
+  const uploadDocumentToVk = async (document) => {
+    try {
+      const fileName = document.file_name;
+      const mimeType = document.mime_type;
+      const link = await app.telegram.getFileLink(document);
+
+      return await vk.upload.messageDocument({
+        source: {
+          value: link,
+          filename: fileName,
+          contentType: mimeType,
+        },
+        peer_id: interlocutor.vkId,
+        title: fileName,
+      });
+    } catch (error) {
+      errorHandler(error);
+    }
+  };
+
   return {
     errorHandler,
     onlySettedUser,
     withSelecterReceiver,
     uploadToVK,
+    uploadDocumentToVk,
   };
 };
 

@@ -3,9 +3,12 @@ const {
   VideoAttachment,
   WallAttachment,
   DocumentAttachment,
+  MarketAttachment,
 } = require('vk-io');
 const { Extra } = require('telegraf');
 const config = require('../../config.json');
+const sharp = require('sharp');
+const request = require('request');
 
 const { VK_VERSION } = config;
 
@@ -19,6 +22,19 @@ const VkUtils = ({ telegram }, vk) => {
             const photo = new PhotoAttachment(atta.photo, vk);
             await telegram.sendPhoto(config.tg_user, photo.getLargePhoto(), {
               caption: photo.getText(),
+              disable_notification: true,
+            });
+            break;
+          }
+          case 'market': {
+            const { market } = atta;
+
+            const message = `Market title: ${market.title}\n\n` +
+              `${market.description}\n\n` +
+              `Price: ${market.price.text}\n`;
+
+            await telegram.sendPhoto(config.tg_user, market.thumb_photo, {
+              caption: message,
               disable_notification: true,
             });
             break;
@@ -66,7 +82,23 @@ const VkUtils = ({ telegram }, vk) => {
               );
               break;
             }
-            await telegram.sendPhoto(config.tg_user, stickerUrl, Extra.notifications(false));
+
+            const converter = sharp()
+              .webp()
+              .toFormat('webp');
+
+            const converterStream = request(stickerUrl)
+              .on('error', e => console.error(e))
+              .pipe(converter);
+
+            await telegram.sendDocument(
+              config.tg_user,
+              {
+                source: converterStream,
+                filename: 'sticker.webp',
+              },
+              Extra.notifications(false),
+            );
             break;
           }
           case 'doc': {
